@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel - Smart Attendance</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Admin Panel</h1>
+        <p>Welcome, {{ name }}!</p>
+        <nav class="nav-links">
+            <a href="/admin">Dashboard</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </div>
+
+    <div class="dashboard-content">
+        <!-- Stats Cards -->
+        <div class="stats">
+            <div class="card present">
+                <h2>{{ students }}</h2>
+                <p>Students</p>
+            </div>
+            <div class="card time">
+                <h2>{{ teachers }}</h2>
+                <p>Teachers</p>
+            </div>
+            <div class="card absent">
+                <h2>{{ classes }}</h2>
+                <p>Classes</p>
+            </div>
+            <div class="card time">
+                <h2>{{ subjects }}</h2>
+                <p>Subjects</p>
+            </div>
+        </div>
+
+        <!-- Admin Actions -->
+        <div class="admin-panels">
+            <div class="admin-card">
+                <h3>Manage Users</h3>
+                <p>Add, edit, and manage all users</p>
+                <a href="/admin/users" class="action-btn">View All Users</a>
+                <a href="/admin/add_user" class="action-btn secondary">Add New</a>
+            </div>
+            <div class="admin-card">
+                <h3>Manage Classes</h3>
+                <p>Create and organize class sections</p>
+                <a href="/admin/add_class" class="action-btn">Add Class</a>
+            </div>
+            <div class="admin-card">
+                <h3>Manage Subjects</h3>
+                <p>Add subjects to the curriculum</p>
+                <a href="/admin/add_subject" class="action-btn">Add Subject</a>
+            </div>
+            <div class="admin-card">
+                <h3>Manage Timetable</h3>
+                <p>Assign subjects and teachers to time slots</p>
+                <a href="/admin/timetable" class="action-btn">Manage</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

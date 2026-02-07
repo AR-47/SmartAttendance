@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Subject - Admin Panel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Add Subject</h1>
+        <p>Add subjects to the curriculum</p>
+        <nav class="nav-links">
+            <a href="/admin">Back to Dashboard</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </div>
+
+    <div class="dashboard-content">
+        <div class="form-container">
+            {% if message %}
+            <div class="message success">{{ message }}</div>
+            {% endif %}
+
+            <form method="POST" class="admin-form">
+                <div class="form-group">
+                    <label>Subject Name</label>
+                    <input type="text" name="subject" placeholder="Enter subject name" required>
+                </div>
+                
+                <button type="submit" class="start-btn">Add Subject</button>
+            </form>
+
+            <!-- Existing Subjects -->
+            {% if subjects %}
+            <div class="existing-items">
+                <h3>Existing Subjects</h3>
+                <div class="items-list">
+                    {% for s in subjects %}
+                    <span class="item-tag">{{ s.subject_name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

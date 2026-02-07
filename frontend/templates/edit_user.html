@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit User - Admin Panel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Edit User</h1>
+        <p>Update user information and reset password</p>
+        <nav class="nav-links">
+            <a href="/admin/users">Back to Users</a>
+            <a href="/admin">Dashboard</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </div>
+
+    <div class="dashboard-content">
+        <div class="form-container">
+            {% if message %}
+            <div class="message success">{{ message }}</div>
+            {% endif %}
+
+            <form method="POST" class="admin-form">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" name="name" value="{{ user.name }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" value="{{ user.email }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Password (visible for reset)</label>
+                    <input type="text" name="password" value="{{ user.password }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Role</label>
+                    <select name="role">
+                        <option value="student" {% if user.role == 'student' %}selected{% endif %}>Student</option>
+                        <option value="teacher" {% if user.role == 'teacher' %}selected{% endif %}>Teacher</option>
+                        <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="classGroup">
+                    <label>Assign to Class (Students only)</label>
+                    <select name="class_id">
+                        <option value="">-- No Class --</option>
+                        {% for c in classes %}
+                        <option value="{{ c.id }}" {% if user.class_id == c.id %}selected{% endif %}>
+                            {{ c.class_name }} - {{ c.room_no }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <button type="submit" class="start-btn">Save Changes</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

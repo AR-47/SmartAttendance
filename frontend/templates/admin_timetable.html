@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Timetable - Admin Panel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Manage Timetable</h1>
+        <p>Assign subjects and teachers to time slots</p>
+        <nav class="nav-links">
+            <a href="/admin">Back to Dashboard</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </div>
+
+    <div class="dashboard-content">
+        <div class="form-container">
+            {% if message %}
+            <div class="message success">{{ message }}</div>
+            {% endif %}
+
+            <form method="POST" class="admin-form timetable-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Class</label>
+                        <select name="class_id" required>
+                            <option value="">-- Select Class --</option>
+                            {% for c in classes %}
+                            <option value="{{ c.id }}">{{ c.class_name }} - {{ c.room_no }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Subject</label>
+                        <select name="subject_id" required>
+                            <option value="">-- Select Subject --</option>
+                            {% for s in subjects %}
+                            <option value="{{ s.id }}">{{ s.subject_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Teacher</label>
+                        <select name="teacher_id" required>
+                            <option value="">-- Select Teacher --</option>
+                            {% for t in teachers %}
+                            <option value="{{ t.id }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Day</label>
+                        <select name="day" required>
+                            <option value="Monday">Monday</option>
+                            <option value="Tuesday">Tuesday</option>
+                            <option value="Wednesday">Wednesday</option>
+                            <option value="Thursday">Thursday</option>
+                            <option value="Friday">Friday</option>
+                            <option value="Saturday">Saturday</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Start Time</label>
+                        <input type="time" name="start" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>End Time</label>
+                        <input type="time" name="end" required>
+                    </div>
+                </div>
+                
+                <button type="submit" class="start-btn">Add Timetable Slot</button>
+            </form>
+        </div>
+
+        <!-- Current Timetable -->
+        {% if timetable %}
+        <div class="table-container">
+            <h2 class="section-title">Current Timetable</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Time</th>
+                        <th>Class</th>
+                        <th>Subject</th>
+                        <th>Teacher</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in timetable %}
+                    <tr>
+                        <td class="day-cell">{{ t.day }}</td>
+                        <td>{{ t.start_time }} - {{ t.end_time }}</td>
+                        <td>{{ t.class_name }}</td>
+                        <td>{{ t.subject_name }}</td>
+                        <td>{{ t.teacher }}</td>
+                        <td>
+                            <form action="/admin/timetable/delete/{{ t.id }}" method="POST" style="display:inline;">
+                                <button type="submit" class="stop-btn" onclick="return confirm('Delete this slot?')">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
