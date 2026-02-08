@@ -206,42 +206,51 @@ def generate_report(known_faces, presence_counter, first_seen_time,
         save_attendance_to_db(known_faces, presence_counter, total_checks, required_ratio)
 
 def save_attendance_to_db(known_faces, presence_counter, total_checks, required_ratio):
-    """Save attendance to database with subject tagging"""
+    """Save face duration data to database for merging with RFID"""
+    import subprocess
+    
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
     today = datetime.now().strftime("%Y-%m-%d")
     
+    print("[DB] Saving face duration data...")
+    
     for person in known_faces:
         name = person["name"]
         sid = person["id"]
-        ratio = presence_counter[name] / total_checks if total_checks else 0
-        status = "Present" if ratio >= required_ratio else "Absent"
         
-        # Check if record already exists for this student, subject, and date
-        cursor.execute("""
-            SELECT id FROM attendance 
-            WHERE student_id = ? AND subject_id = ? AND date = ?
-        """, (sid, SUBJECT_ID, today))
+        # Calculate duration from first/last seen times
+        entry = person.get("first_seen")
+        exit_time = person.get("last_seen")
         
-        existing = cursor.fetchone()
-        
-        if existing:
-            # Update existing record
-            cursor.execute("""
-                UPDATE attendance SET status = ? 
-                WHERE student_id = ? AND subject_id = ? AND date = ?
-            """, (status, sid, SUBJECT_ID, today))
+        if entry and exit_time:
+            duration = round((exit_time - entry).total_seconds() / 60, 2)
         else:
-            # Insert new record
-            cursor.execute("""
-                INSERT INTO attendance (student_id, subject_id, date, status)
-                VALUES (?, ?, ?, ?)
-            """, (sid, SUBJECT_ID, today, status))
+            # Fallback: use presence ratio to estimate duration
+            ratio = presence_counter.get(name, 0) / total_checks if total_checks else 0
+            duration = round(ratio * 60, 2)  # Estimate based on 60 min class
+        
+        # Save to face_logs for merging with RFID data
+        cursor.execute("""
+            INSERT INTO face_logs (student_id, subject_id, duration, date)
+            VALUES (?, ?, ?, ?)
+        """, (sid, SUBJECT_ID, duration, today))
+        
+        print(f"  → {name}: {duration:.1f} min recorded")
     
     conn.commit()
     conn.close()
-    print(f"[DB] Attendance saved to database for Subject ID: {SUBJECT_ID}")
+    
+    print(f"[DB] Face data saved for Subject ID: {SUBJECT_ID}")
+    print("[DB] Calling finalize_attendance...")
+    
+    # Call finalize_attendance to merge RFID + Face data
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), "finalize_attendance.py")
+        subprocess.run(["python", script_path], cwd=os.path.dirname(script_path))
+    except Exception as e:
+        print(f"[!] Error finalizing attendance: {e}")
 
 # -------- GUI --------
 def start_attendance():

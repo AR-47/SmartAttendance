@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Download Attendance - Admin Panel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Download Attendance Report</h1>
+        <p>Export attendance data to Excel</p>
+        <nav class="nav-links">
+            <a href="/admin">Back to Dashboard</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </div>
+
+    <div class="dashboard-content">
+        <div class="form-container">
+            <form method="POST" class="admin-form">
+                <div class="form-group">
+                    <label>Select Class</label>
+                    <select name="class_id" required>
+                        <option value="">-- Choose Class --</option>
+                        {% for c in classes %}
+                        <option value="{{ c.id }}">{{ c.class_name }} - {{ c.room_no }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Select Date</label>
+                    <input type="date" name="date" required>
+                </div>
+                
+                <button type="submit" class="start-btn">
+                    📥 Download Excel Report
+                </button>
+            </form>
+            
+            <div class="info-card" style="margin-top: 20px;">
+                <h3>Report Contents</h3>
+                <ul style="color: #94a3b8; line-height: 1.8;">
+                    <li>Student names with attendance status</li>
+                    <li>Subject-wise breakdown</li>
+                    <li>Present/Absent status for selected date</li>
+                    <li>Auto-formatted Excel file</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

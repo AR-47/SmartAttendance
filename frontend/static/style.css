@@ -667,3 +667,19 @@ tr:nth-child(even) {
     letter-spacing: 1px;
     margin-bottom: 15px;
 }
+
+/* ============ DOWNLOAD BUTTON ============ */
+.download-btn {
+    background: linear-gradient(135deg, #059669, #10b981) !important;
+    color: white !important;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}

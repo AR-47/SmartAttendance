@@ -4,6 +4,40 @@
     <meta charset="UTF-8">
     <title>Add User - Admin Panel</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .rfid-status {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .rfid-status.waiting {
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid #eab308;
+            color: #facc15;
+        }
+        .rfid-status.ready {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid #10b981;
+            color: #4ade80;
+        }
+        .rfid-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+        .rfid-icon {
+            font-size: 24px;
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -11,6 +45,7 @@
         <p>Add students or teachers to the system</p>
         <nav class="nav-links">
             <a href="/admin">Back to Dashboard</a>
+            <a href="/admin/users">View All Users</a>
             <a href="/logout">Logout</a>
         </nav>
     </div>
@@ -19,6 +54,21 @@
         <div class="form-container">
             {% if message %}
             <div class="message success">{{ message }}</div>
+            {% endif %}
+
+            <!-- RFID Status Card -->
+            {% if rfid_status %}
+            <div class="rfid-status ready">
+                <span class="rfid-icon">📟</span>
+                <span class="rfid-dot"></span>
+                <span><strong>{{ rfid_status }}</strong> - Ready to assign!</span>
+            </div>
+            {% else %}
+            <div class="rfid-status waiting">
+                <span class="rfid-icon">📟</span>
+                <span class="rfid-dot"></span>
+                <span>Tap RFID card before clicking Add User</span>
+            </div>
             {% endif %}
 
             <form method="POST" class="admin-form">
@@ -55,8 +105,18 @@
                     </select>
                 </div>
                 
-                <button type="submit" class="start-btn">Add User</button>
+                <button type="submit" class="start-btn">Add User + Assign RFID</button>
             </form>
+            
+            <div class="info-card" style="margin-top: 20px;">
+                <h3>How RFID Registration Works</h3>
+                <ol style="color: #94a3b8; line-height: 1.8;">
+                    <li>Run <code>python rfid_service.py</code> in background</li>
+                    <li>Fill in user details above</li>
+                    <li>Tap student's RFID card on the reader</li>
+                    <li>Click <strong>Add User + Assign RFID</strong></li>
+                </ol>
+            </div>
         </div>
     </div>
 
@@ -66,6 +126,11 @@
             const classGroup = document.getElementById('classGroup');
             classGroup.style.display = role === 'student' ? 'block' : 'none';
         }
+        
+        // Auto-refresh to check for new RFID card
+        setInterval(() => {
+            // Refresh page to check for new card (only if no form data)
+        }, 5000);
     </script>
 </body>
 </html>

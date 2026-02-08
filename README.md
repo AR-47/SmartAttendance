@@ -1,23 +1,67 @@
 # 🎓 SMART ATTENDANCE SYSTEM
 
-### AI-Powered Face Recognition Attendance with Timetable Integration
+### AI-Powered Face Recognition + RFID Attendance with Timetable Integration
+
+A fully automated attendance system that uses **AI face recognition** and **RFID verification** to track student presence. The system runs autonomously based on the class timetable — no manual intervention required.
 
 ---
 
-## 📁 PROJECT STRUCTURE
+## ✨ Key Features
+
+| Feature                    | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| 🤖 **AI Face Recognition** | DeepFace-powered real-time face detection    |
+| 📟 **RFID Integration**    | Hardware card verification for entry logging |
+| 📅 **Timetable-Driven**    | Auto-starts/stops based on class schedule    |
+| 🔐 **Role-Based Access**   | Admin, Teacher, Student dashboards           |
+| 📊 **Live Monitoring**     | Real-time attendance view                    |
+| 🏷️ **Subject-Tagged**      | Attendance linked to specific subjects       |
+
+---
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SMART ATTENDANCE SYSTEM                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   📅 Timetable Database                                      │
+│        ↓                                                     │
+│   ⏰ Auto Scheduler (watches clock, controls sessions)       │
+│        ↓                                                     │
+│   ┌──────────────────┐    ┌──────────────────┐              │
+│   │  🎥 Face AI      │    │  📟 RFID Reader  │              │
+│   │  (presence)      │    │  (entry verify)  │              │
+│   └────────┬─────────┘    └────────┬─────────┘              │
+│            └──────────┬────────────┘                         │
+│                       ↓                                      │
+│               💾 Attendance Database                         │
+│               (student_id + subject_id + date)               │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
 
 ```
 smart_attendance/
-│   database.db              # SQLite database
+│
+│   # ====== CORE RUNTIME ======
+│   auto_scheduler.py        # Brain: auto-starts sessions by timetable
 │   live_recognition.py      # AI face recognition engine
-│   auto_scheduler.py        # Auto-starts sessions by timetable
+│   rfid_service.py          # RFID capture for user registration
+│   database.db              # SQLite database
+│   README.md                # This file
 │
 ├───backend/
-│       app.py               # Flask web server
+│       app.py               # Flask web server (all routes)
 │
 ├───frontend/
 │   ├───static/
-│   │       style.css        # Styling
+│   │       style.css        # Dark theme styling
 │   │       schedule.js      # Timetable interactions
 │   │
 │   └───templates/
@@ -25,273 +69,191 @@ smart_attendance/
 │           student_dashboard.html
 │           teacher_dashboard.html
 │           admin_dashboard.html
-│           add_user.html
-│           add_subject.html
-│           add_class.html
+│           admin_users.html
 │           admin_timetable.html
+│           add_user.html
+│           add_class.html
+│           add_subject.html
+│           edit_user.html
+│           live_monitor.html
 │           timetable.html
 │
-├───dev_tools/
+├───dev_tools/               # One-time setup scripts
 │       setup_system_db.py   # Creates database tables
-│       add_sample_users.py  # Adds test users
+│       add_sample_users.py  # Creates admin account
+│       setup_rfid.py        # Adds RFID tables
+│       assign_rfid.py       # Manual RFID assignment
+│       rfid_reader.py       # Standalone RFID logging
 │
-└───id_database/
-        Adithya.png          # Face images for recognition
-        (add more .png/.jpg files named as student names)
+└───id_database/             # Face images for recognition
+        Adithya.png
+        (add more student photos here)
 ```
 
 ---
 
-## 🚀 COMPLETE DEMO GUIDE (For Reviewers)
+## 🚀 Quick Start
 
-### STEP 1: Setup Database (One-time)
+### 1. Install Dependencies
 
-Open **PowerShell/Terminal** and run:
-
-```powershell
-cd c:\Users\adith\Desktop\smart_attendance\dev_tools
-python setup_system_db.py
+```bash
+pip install flask opencv-python deepface openpyxl keyboard
 ```
 
-Expected output:
+### 2. Setup Database
 
+```bash
+cd dev_tools
+python setup_system_db.py    # Create tables
+python add_sample_users.py   # Create admin account
+python setup_rfid.py         # Add RFID support
 ```
-[OK] Database tables created successfully!
-```
 
----
+### 3. Run the System
 
-### STEP 2: Start Flask Server
+**Terminal 1: Web Server**
 
-Open a **new terminal** (keep it running):
-
-```powershell
-cd c:\Users\adith\Desktop\smart_attendance\backend
+```bash
+cd backend
 python app.py
 ```
 
-Expected output:
+**Terminal 2: Auto Scheduler**
 
-```
- * Running on http://127.0.0.1:5000
-```
-
----
-
-### STEP 3: Create Admin Account (First Time)
-
-You need at least one admin to use the system. Run:
-
-```powershell
-cd c:\Users\adith\Desktop\smart_attendance\dev_tools
-python add_sample_users.py
-```
-
-This creates a default admin:
-
-- **Email:** `admin@mail.com`
-- **Password:** `admin`
-
----
-
-### STEP 4: Login as Admin
-
-1. Open browser: **http://127.0.0.1:5000/login**
-2. Login with:
-   - Email: `admin@mail.com`
-   - Password: `admin`
-
-You'll see the **Admin Dashboard** with stats.
-
----
-
-### STEP 5: Add a Class
-
-1. Click **"Add Class"**
-2. Enter:
-   - Class Name: `CSE Blockchain`
-   - Section: `8CBC-1`
-3. Click **Add Class**
-
----
-
-### STEP 6: Add Subjects
-
-1. Click **"Add Subject"** (from dashboard)
-2. Add these subjects one by one:
-   - `DBMS`
-   - `AIML`
-   - `OOPS`
-   - `Cloud Computing`
-
----
-
-### STEP 7: Add Teachers
-
-1. Click **"Add User"**
-2. Add teachers:
-
-| Name   | Email            | Password | Role    |
-| ------ | ---------------- | -------- | ------- |
-| Stacey | stacey@gmail.com | 1234     | Teacher |
-| Becky  | becky@gmail.com  | 1234     | Teacher |
-| Keisha | keisha@gmail.com | 1234     | Teacher |
-| Ashley | ashley@gmail.com | 1234     | Teacher |
-
----
-
-### STEP 8: Add Students (Assign to Class)
-
-1. Click **"Add User"**
-2. Add students (select the class!):
-
-| Name    | Email             | Password | Role    | Class                   |
-| ------- | ----------------- | -------- | ------- | ----------------------- |
-| Adithya | adithya@gmail.com | 1234     | Student | CSE Blockchain - 8CBC-1 |
-| Shreyas | shreyas@gmail.com | 1234     | Student | CSE Blockchain - 8CBC-1 |
-| Rakesh  | rakesh@gmail.com  | 1234     | Student | CSE Blockchain - 8CBC-1 |
-
----
-
-### STEP 9: Create Timetable
-
-1. Click **"Manage Timetable"**
-2. Add time slots:
-
-| Class          | Subject         | Teacher | Day     | Start | End   |
-| -------------- | --------------- | ------- | ------- | ----- | ----- |
-| CSE Blockchain | DBMS            | Stacey  | Monday  | 09:00 | 10:00 |
-| CSE Blockchain | AIML            | Becky   | Monday  | 10:00 | 11:00 |
-| CSE Blockchain | OOPS            | Keisha  | Tuesday | 09:00 | 10:00 |
-| CSE Blockchain | Cloud Computing | Ashley  | Tuesday | 10:00 | 11:00 |
-
----
-
-### STEP 10: Test Student Login
-
-1. Logout
-2. Login as student:
-   - Email: `adithya@mail.com`
-   - Password: `1234`
-3. See the **timetable view**
-
----
-
-### STEP 11: Test Teacher Login
-
-1. Logout
-2. Login as teacher:
-   - Email: `stacey@mail.com`
-   - Password: `1234`
-3. See **assigned classes** with Start Attendance button
-
----
-
-### STEP 12: Add Face Images
-
-Add student face photos to: `id_database/`
-
-- File name = Student name (e.g., `Adithya.png`, `Messi.jpg`)
-- Clear front-facing photos work best
-
----
-
-### STEP 13: Test Manual Face Recognition
-
-```powershell
-cd c:\Users\adith\Desktop\smart_attendance
-python live_recognition.py
-```
-
-1. Click **Start Attendance**
-2. Face the camera
-3. See names appear above detected faces
-4. Press **Q** to stop
-5. Check the generated Excel report
-
----
-
-### STEP 14: Run Auto Scheduler (Smart Mode)
-
-Open a **new terminal**:
-
-```powershell
-cd c:\Users\adith\Desktop\smart_attendance
+```bash
 python auto_scheduler.py
 ```
 
-The system now:
-
-- ✅ Watches the timetable
-- ✅ Auto-starts camera when class begins
-- ✅ Auto-stops when class ends
-- ✅ Tags attendance with subject + date
-
----
-
-## 🔐 ACCESS CONTROL
-
-| Role    | Can Add Users | Can Add Timetable | Can View Timetable | Can Start Attendance |
-| ------- | ------------- | ----------------- | ------------------ | -------------------- |
-| Admin   | ✅            | ✅                | ✅                 | ❌                   |
-| Teacher | ❌            | ❌                | ✅ (own classes)   | ✅                   |
-| Student | ❌            | ❌                | ✅ (own class)     | ❌                   |
-
----
-
-## 🧠 SYSTEM FEATURES
-
-### Core Features
-
-- ✅ Face recognition using DeepFace AI
-- ✅ Role-based authentication (Admin/Teacher/Student)
-- ✅ Timetable management
-- ✅ Subject-wise attendance tracking
-
-### Smart Features
-
-- ✅ Auto-scheduled attendance sessions
-- ✅ Context-aware attendance (tagged by subject)
-- ✅ Presence ratio calculation (not just yes/no)
-- ✅ Entry/exit time tracking
-
----
-
-## 📧 LOGIN CREDENTIALS (After Setup)
-
-| Role    | Email            | Password |
-| ------- | ---------------- | -------- |
-| Admin   | admin@mail.com   | admin    |
-| Teacher | stacey@mail.com  | 1234     |
-| Student | adithya@mail.com | 1234     |
-
----
-
-## ⚠️ REQUIREMENTS
-
-- Python 3.8+
-- Flask
-- OpenCV
-- DeepFace
-- openpyxl
-- tkinter (usually pre-installed)
-
-Install with:
+**Terminal 3: RFID Service** (optional, for registration)
 
 ```bash
-pip install flask opencv-python deepface openpyxl
+python rfid_service.py
+```
+
+### 4. Access the System
+
+Open browser: **http://127.0.0.1:5000**
+
+---
+
+## 🔑 Default Login
+
+| Role  | Email           | Password |
+| ----- | --------------- | -------- |
+| Admin | admin@gmail.com | admin    |
+
+---
+
+## 📋 Setup Workflow (For Demo)
+
+1. **Login as Admin**
+2. **Add Classes** → CSE Blockchain - 8CBC-1
+3. **Add Subjects** → DBMS, AIML, OOPS, Cloud Computing
+4. **Add Teachers** → With email and password
+5. **Add Students** → Assign to class, tap RFID card
+6. **Create Timetable** → Assign subjects to time slots
+7. **Add Face Photos** → Put student photos in `id_database/`
+8. **Run auto_scheduler.py** → System now runs automatically!
+
+---
+
+## 🎯 How It Works
+
+### Fully Automated Flow:
+
+```
+09:00 → Timetable says "DBMS class starts"
+      → Auto Scheduler detects this
+      → Launches face recognition camera
+      → Students walk in, faces detected
+      → 10:00 → Class ends → Camera stops
+      → Attendance saved with subject tag
+```
+
+**Zero teacher intervention required.**
+
+---
+
+## 👥 Role Permissions
+
+| Feature           | Admin | Teacher | Student |
+| ----------------- | ----- | ------- | ------- |
+| Add Users         | ✅    | ❌      | ❌      |
+| Add Classes       | ✅    | ❌      | ❌      |
+| Add Subjects      | ✅    | ❌      | ❌      |
+| Manage Timetable  | ✅    | ❌      | ❌      |
+| View Own Schedule | ✅    | ✅      | ✅      |
+| View Live Monitor | ✅    | ✅      | ❌      |
+| Reset Passwords   | ✅    | ❌      | ❌      |
+
+---
+
+## 🔧 Hardware Requirements
+
+| Component         | Purpose           |
+| ----------------- | ----------------- |
+| Webcam            | Face recognition  |
+| RFID Reader (USB) | Card verification |
+| RFID Cards        | Student ID cards  |
+
+**RFID Reader Type:** USB HID (keyboard output mode)
+
+---
+
+## 📊 Database Schema
+
+```sql
+users       → id, name, email, password, role, class_id, rfid_uid
+classes     → id, class_name, room_no
+subjects    → id, subject_name
+timetable   → id, class_id, subject_id, teacher_id, day, start_time, end_time
+attendance  → id, student_id, subject_id, date, status
+rfid_logs   → id, student_id, subject_id, timestamp
 ```
 
 ---
 
-## 🎯 WHAT MAKES THIS "SMART"
+## 🆚 What Makes This "Smart"
 
-1. **Timetable-Driven** - No manual intervention needed
-2. **Context-Aware** - Knows which subject is being attended
-3. **AI-Powered** - Face recognition, not manual roll call
-4. **Role-Based** - Each user sees only what they need
-5. **Fully Automated** - Camera starts/stops on schedule
+| Regular System        | This System               |
+| --------------------- | ------------------------- |
+| Teacher clicks button | Auto-starts by timetable  |
+| Manual roll call      | AI face recognition       |
+| No verification       | RFID + Face dual auth     |
+| Generic records       | Subject-tagged attendance |
+| Needs supervision     | Runs autonomously         |
 
 ---
 
-Built with ❤️ by Adithya
+## 🛡️ Security Notes
+
+- Passwords are stored in plain text (for demo purposes)
+- For production: Use `werkzeug.security` for hashing
+- RFID UIDs should be encrypted in production
+
+---
+
+## 📝 Future Improvements
+
+- [ ] Password hashing
+- [ ] Email notifications for absences
+- [ ] Attendance reports export
+- [ ] Mobile app for students
+- [ ] Multiple camera support
+- [ ] Cloud deployment
+
+---
+
+## 👨‍💻 Built By
+
+**Adithya**
+
+---
+
+## 📜 License
+
+This project is for educational purposes.
+
+---
+
+_Built with Flask, OpenCV, DeepFace, and SQLite_ 🐍

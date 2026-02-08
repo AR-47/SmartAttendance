@@ -1,7 +1,10 @@
-from flask import Flask, render_template, jsonify, request, redirect, session, url_for
+from flask import Flask, render_template, jsonify, request, redirect, session, url_for, send_file
 import sqlite3
 import os
 import subprocess
+import openpyxl
+from io import BytesIO
+from datetime import date
 
 app = Flask(
     __name__,
@@ -191,6 +194,7 @@ def add_user():
         return redirect("/login")
     
     message = ""
+    rfid_status = ""
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -201,21 +205,39 @@ def add_user():
         role = request.form["role"]
         class_id = request.form.get("class_id") or None
         
+        # Get latest RFID UID from buffer (if card was tapped)
+        cursor.execute("SELECT uid FROM rfid_buffer LIMIT 1")
+        rfid_result = cursor.fetchone()
+        rfid_uid = rfid_result["uid"] if rfid_result else None
+        
         try:
             cursor.execute("""
-                INSERT INTO users (name, email, password, role, class_id) 
-                VALUES (?, ?, ?, ?, ?)
-            """, (name, email, password, role, class_id))
+                INSERT INTO users (name, email, password, role, class_id, rfid_uid) 
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (name, email, password, role, class_id, rfid_uid))
             conn.commit()
-            message = f"User '{name}' added successfully!"
+            
+            if rfid_uid:
+                message = f"User '{name}' added with RFID card!"
+                # Clear the buffer after successful use
+                cursor.execute("DELETE FROM rfid_buffer")
+                conn.commit()
+            else:
+                message = f"User '{name}' added (no RFID card assigned)"
         except:
             message = "Error: Email already exists!"
+    
+    # Check if there's a card in the buffer
+    cursor.execute("SELECT uid FROM rfid_buffer LIMIT 1")
+    buffered_card = cursor.fetchone()
+    if buffered_card:
+        rfid_status = f"Card ready: {buffered_card['uid']}"
     
     # Get classes for dropdown
     classes = cursor.execute("SELECT id, class_name, room_no FROM classes").fetchall()
     conn.close()
     
-    return render_template("add_user.html", message=message, classes=classes)
+    return render_template("add_user.html", message=message, classes=classes, rfid_status=rfid_status)
 
 # -------- ADMIN: VIEW ALL USERS --------
 @app.route("/admin/users")
@@ -463,6 +485,143 @@ def schedule_api():
     conn.close()
 
     return jsonify([dict(r) for r in rows])
+
+# -------- TEACHER: DOWNLOAD REPORT --------
+@app.route("/teacher/download_report")
+def teacher_download_report():
+    if session.get("role") != "teacher":
+        return redirect("/login")
+    
+    teacher_id = session["user_id"]
+    today = date.today().isoformat()
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Get attendance for subjects taught by this teacher
+    cursor.execute("""
+        SELECT DISTINCT users.name as student_name, subjects.subject_name, 
+               attendance.date, attendance.status
+        FROM attendance
+        JOIN users ON attendance.student_id = users.id
+        JOIN subjects ON attendance.subject_id = subjects.id
+        JOIN timetable ON timetable.subject_id = subjects.id
+        WHERE timetable.teacher_id = ? AND attendance.date = ?
+        ORDER BY subjects.subject_name, users.name
+    """, (teacher_id, today))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # Create Excel workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Attendance"
+    
+    # Header styling
+    ws.append(["Student Name", "Subject", "Date", "Status"])
+    
+    for r in rows:
+        ws.append([r["student_name"], r["subject_name"], r["date"], r["status"]])
+    
+    # Auto-adjust column widths
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        ws.column_dimensions[column_letter].width = max_length + 2
+    
+    file_stream = BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+    
+    return send_file(
+        file_stream,
+        download_name=f"Teacher_Attendance_{today}.xlsx",
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# -------- ADMIN: DOWNLOAD REPORT --------
+@app.route("/admin/download_report", methods=["GET", "POST"])
+def admin_download_report():
+    if session.get("role") != "admin":
+        return redirect("/login")
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    if request.method == "POST":
+        class_id = request.form["class_id"]
+        selected_date = request.form["date"]
+        
+        # Get class name for filename
+        cursor.execute("SELECT class_name FROM classes WHERE id = ?", (class_id,))
+        class_info = cursor.fetchone()
+        class_name = class_info["class_name"] if class_info else "Unknown"
+        
+        # Get attendance for selected class and date
+        cursor.execute("""
+            SELECT users.name as student_name, subjects.subject_name, 
+                   attendance.date, attendance.status
+            FROM attendance
+            JOIN users ON attendance.student_id = users.id
+            JOIN subjects ON attendance.subject_id = subjects.id
+            WHERE users.class_id = ? AND attendance.date = ?
+            ORDER BY subjects.subject_name, users.name
+        """, (class_id, selected_date))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Create Excel workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Attendance"
+        
+        # Add header info
+        ws.append([f"Class: {class_name}"])
+        ws.append([f"Date: {selected_date}"])
+        ws.append([])  # Empty row
+        ws.append(["Student Name", "Subject", "Date", "Status"])
+        
+        for r in rows:
+            ws.append([r["student_name"], r["subject_name"], r["date"], r["status"]])
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            ws.column_dimensions[column_letter].width = max_length + 2
+        
+        file_stream = BytesIO()
+        wb.save(file_stream)
+        file_stream.seek(0)
+        
+        safe_class_name = class_name.replace(" ", "_")
+        return send_file(
+            file_stream,
+            download_name=f"{safe_class_name}_Attendance_{selected_date}.xlsx",
+            as_attachment=True,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
+    # GET request - show form
+    classes = cursor.execute("SELECT id, class_name, room_no FROM classes").fetchall()
+    conn.close()
+    
+    return render_template("admin_download.html", classes=classes)
 
 if __name__ == "__main__":
     # Make sure database exists
