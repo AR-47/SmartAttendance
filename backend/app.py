@@ -205,10 +205,16 @@ def add_user():
         role = request.form["role"]
         class_id = request.form.get("class_id") or None
         
-        # Get latest RFID UID from buffer (if card was tapped)
-        cursor.execute("SELECT uid FROM rfid_buffer LIMIT 1")
-        rfid_result = cursor.fetchone()
-        rfid_uid = rfid_result["uid"] if rfid_result else None
+        rfid_uid = None
+        
+        # ONLY capture RFID if user is a STUDENT
+        if role == "student":
+            cursor.execute("SELECT uid FROM rfid_buffer LIMIT 1")
+            rfid_result = cursor.fetchone()
+            if rfid_result:
+                rfid_uid = rfid_result["uid"]
+                # Clear buffer after use
+                cursor.execute("DELETE FROM rfid_buffer")
         
         try:
             cursor.execute("""
@@ -217,17 +223,17 @@ def add_user():
             """, (name, email, password, role, class_id, rfid_uid))
             conn.commit()
             
-            if rfid_uid:
-                message = f"User '{name}' added with RFID card!"
-                # Clear the buffer after successful use
-                cursor.execute("DELETE FROM rfid_buffer")
-                conn.commit()
+            if role == "student":
+                if rfid_uid:
+                    message = f"Student '{name}' added with RFID card!"
+                else:
+                    message = f"Student '{name}' added (⚠️ No RFID card - tap card and try again)"
             else:
-                message = f"User '{name}' added (no RFID card assigned)"
+                message = f"Teacher '{name}' added successfully!"
         except:
             message = "Error: Email already exists!"
     
-    # Check if there's a card in the buffer
+    # Check if there's a card in the buffer (for students)
     cursor.execute("SELECT uid FROM rfid_buffer LIMIT 1")
     buffered_card = cursor.fetchone()
     if buffered_card:
@@ -245,20 +251,33 @@ def manage_users():
     if session.get("role") != "admin":
         return redirect("/login")
     
+    role_filter = request.args.get("role", "all")
+    
     conn = get_connection()
     cursor = conn.cursor()
     
-    users = cursor.execute("""
+    # Base query - exclude admin accounts
+    query = """
         SELECT users.id, users.name, users.email, users.role, 
-               classes.class_name, classes.room_no
+               classes.class_name, classes.room_no, users.rfid_uid
         FROM users
         LEFT JOIN classes ON users.class_id = classes.id
-        ORDER BY users.role, users.name
-    """).fetchall()
+        WHERE users.role != 'admin'
+    """
     
+    params = []
+    
+    # Apply role filter if specified
+    if role_filter in ["student", "teacher"]:
+        query += " AND users.role = ?"
+        params.append(role_filter)
+    
+    query += " ORDER BY users.role, users.name"
+    
+    users = cursor.execute(query, params).fetchall()
     conn.close()
     
-    return render_template("admin_users.html", users=users)
+    return render_template("admin_users.html", users=users, role_filter=role_filter)
 
 # -------- ADMIN: EDIT USER --------
 @app.route("/admin/edit_user/<int:user_id>", methods=["GET", "POST"])

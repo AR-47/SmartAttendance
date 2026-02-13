@@ -4,6 +4,59 @@
     <meta charset="UTF-8">
     <title>Manage Users - Admin Panel</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px 20px;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .filter-bar label {
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .filter-bar select {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background: #1e293b;
+            color: #f1f5f9;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .user-count {
+            margin-left: auto;
+            color: #64748b;
+            font-size: 14px;
+        }
+        .user-count strong {
+            color: #10b981;
+        }
+        .rfid-uid {
+            font-family: monospace;
+            color: #22d3ee;
+            font-size: 12px;
+        }
+        .role-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .role-student {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+        .role-teacher {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -18,6 +71,22 @@
 
     <div class="dashboard-content">
         <div class="table-container">
+            
+            <!-- Role Filter Bar -->
+            <div class="filter-bar">
+                <label>Filter by Role:</label>
+                <form method="GET" id="filterForm">
+                    <select name="role" onchange="this.form.submit()">
+                        <option value="all" {% if role_filter == 'all' %}selected{% endif %}>All Users</option>
+                        <option value="student" {% if role_filter == 'student' %}selected{% endif %}>Students Only</option>
+                        <option value="teacher" {% if role_filter == 'teacher' %}selected{% endif %}>Teachers Only</option>
+                    </select>
+                </form>
+                <span class="user-count">
+                    Showing <strong>{{ users|length }}</strong> user(s)
+                </span>
+            </div>
+            
             <table class="weekly-table">
                 <thead>
                     <tr>
@@ -26,6 +95,7 @@
                         <th>Email</th>
                         <th>Role</th>
                         <th>Class</th>
+                        <th>RFID UID</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -45,18 +115,30 @@
                             <span class="empty-slot">-</span>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if u.rfid_uid %}
+                            <span class="rfid-uid">{{ u.rfid_uid }}</span>
+                            {% else %}
+                            <span class="empty-slot">-</span>
+                            {% endif %}
+                        </td>
                         <td class="action-cell">
                             <a href="/admin/edit_user/{{ u.id }}" class="edit-link">Edit</a>
-                            {% if u.role != 'admin' %}
                             <form action="/admin/delete_user/{{ u.id }}" method="POST" style="display:inline;">
                                 <button type="submit" class="delete-link" onclick="return confirm('Delete {{ u.name }}?')">Delete</button>
                             </form>
-                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            
+            {% if users|length == 0 %}
+            <div class="empty-state" style="padding: 40px; text-align: center; color: #64748b;">
+                <p>No users found for this filter.</p>
+                <a href="/admin/add_user" class="action-btn" style="display: inline-block; margin-top: 10px;">Add New User</a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </body>

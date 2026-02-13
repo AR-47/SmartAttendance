@@ -23,6 +23,11 @@
             border: 1px solid #10b981;
             color: #4ade80;
         }
+        .rfid-status.not-needed {
+            background: rgba(100, 116, 139, 0.15);
+            border: 1px solid #64748b;
+            color: #94a3b8;
+        }
         .rfid-dot {
             width: 10px;
             height: 10px;
@@ -56,20 +61,28 @@
             <div class="message success">{{ message }}</div>
             {% endif %}
 
-            <!-- RFID Status Card -->
-            {% if rfid_status %}
-            <div class="rfid-status ready">
-                <span class="rfid-icon">📟</span>
-                <span class="rfid-dot"></span>
-                <span><strong>{{ rfid_status }}</strong> - Ready to assign!</span>
+            <!-- RFID Status Card (Only shown for Students) -->
+            <div id="rfidSection">
+                {% if rfid_status %}
+                <div class="rfid-status ready">
+                    <span class="rfid-icon">📟</span>
+                    <span class="rfid-dot"></span>
+                    <span><strong>{{ rfid_status }}</strong> - Ready to assign!</span>
+                </div>
+                {% else %}
+                <div class="rfid-status waiting" id="rfidWaiting">
+                    <span class="rfid-icon">📟</span>
+                    <span class="rfid-dot"></span>
+                    <span>Tap RFID card before clicking Add (Students only)</span>
+                </div>
+                {% endif %}
             </div>
-            {% else %}
-            <div class="rfid-status waiting">
-                <span class="rfid-icon">📟</span>
-                <span class="rfid-dot"></span>
-                <span>Tap RFID card before clicking Add User</span>
+            
+            <!-- Teacher Notice (Hidden by default) -->
+            <div id="teacherNotice" class="rfid-status not-needed" style="display: none;">
+                <span class="rfid-icon">👩‍🏫</span>
+                <span>Teachers don't need RFID cards</span>
             </div>
-            {% endif %}
 
             <form method="POST" class="admin-form">
                 <div class="form-group">
@@ -89,7 +102,7 @@
                 
                 <div class="form-group">
                     <label>Role</label>
-                    <select name="role" id="roleSelect" onchange="toggleClassSelect()">
+                    <select name="role" id="roleSelect">
                         <option value="student">Student</option>
                         <option value="teacher">Teacher</option>
                     </select>
@@ -105,32 +118,54 @@
                     </select>
                 </div>
                 
-                <button type="submit" class="start-btn">Add User + Assign RFID</button>
+                <button type="submit" class="start-btn" id="submitBtn">Add Student + Assign RFID</button>
             </form>
             
-            <div class="info-card" style="margin-top: 20px;">
+            <div class="info-card" style="margin-top: 20px;" id="rfidHelp">
                 <h3>How RFID Registration Works</h3>
                 <ol style="color: #94a3b8; line-height: 1.8;">
                     <li>Run <code>python rfid_service.py</code> in background</li>
-                    <li>Fill in user details above</li>
+                    <li>Fill in student details above</li>
                     <li>Tap student's RFID card on the reader</li>
-                    <li>Click <strong>Add User + Assign RFID</strong></li>
+                    <li>Click <strong>Add Student + Assign RFID</strong></li>
                 </ol>
             </div>
         </div>
     </div>
 
     <script>
-        function toggleClassSelect() {
-            const role = document.getElementById('roleSelect').value;
-            const classGroup = document.getElementById('classGroup');
-            classGroup.style.display = role === 'student' ? 'block' : 'none';
+        const roleSelect = document.getElementById('roleSelect');
+        const classGroup = document.getElementById('classGroup');
+        const rfidSection = document.getElementById('rfidSection');
+        const teacherNotice = document.getElementById('teacherNotice');
+        const submitBtn = document.getElementById('submitBtn');
+        const rfidHelp = document.getElementById('rfidHelp');
+
+        function toggleRoleFields() {
+            const role = roleSelect.value;
+            
+            if (role === 'student') {
+                // Show student-specific elements
+                classGroup.style.display = 'block';
+                rfidSection.style.display = 'block';
+                teacherNotice.style.display = 'none';
+                rfidHelp.style.display = 'block';
+                submitBtn.textContent = 'Add Student + Assign RFID';
+            } else {
+                // Show teacher-specific elements
+                classGroup.style.display = 'none';
+                rfidSection.style.display = 'none';
+                teacherNotice.style.display = 'flex';
+                rfidHelp.style.display = 'none';
+                submitBtn.textContent = 'Add Teacher';
+            }
         }
+
+        // Run on page load
+        toggleRoleFields();
         
-        // Auto-refresh to check for new RFID card
-        setInterval(() => {
-            // Refresh page to check for new card (only if no form data)
-        }, 5000);
+        // Run when role changes
+        roleSelect.addEventListener('change', toggleRoleFields);
     </script>
 </body>
 </html>
