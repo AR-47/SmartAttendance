@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS attendance (
     date TEXT,
     status TEXT CHECK(status IN ('Present','Absent')),
     FOREIGN KEY(student_id) REFERENCES users(id),
-    FOREIGN KEY(subject_id) REFERENCES subjects(id)
+    FOREIGN KEY(subject_id) REFERENCES subjects(id),
+    UNIQUE(student_id, subject_id, date)
 )
 """)
 print("[OK] attendance table ready")

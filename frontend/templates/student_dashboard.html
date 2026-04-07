@@ -41,10 +41,13 @@
                         <td class="time-cell">{{ time }}</td>
                         {% for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] %}
                         <td class="subject-cell">
-                            {% if timetable.get((day, time)) %}
-                            <span class="subject-tag">{{ timetable.get((day, time)) }}</span>
+                            {% set slot = timetable.get((day, time)) %}
+                            {% if slot %}
+                                <span class="subject-tag {% if slot.status == 'Absent' %}absent{% endif %}">
+                                    {{ slot.name }}
+                                </span>
                             {% else %}
-                            <span class="empty-slot">-</span>
+                                <span class="empty-slot">-</span>
                             {% endif %}
                         </td>
                         {% endfor %}

@@ -683,3 +683,19 @@ tr:nth-child(even) {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
 }
+
+/* Keep existing green for present */
+.subject-tag {
+    display: inline-block;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: white;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+/* Add this for absent */
+.subject-tag.absent {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+}

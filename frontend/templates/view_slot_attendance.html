@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Period Attendance - Smart Attendance</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .attendance-table { margin-top: 30px; width: 100%; }
+        .status-Present { color: #4ade80; font-weight: bold; }
+        .status-Absent { color: #f87171; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Attendance: {{ slot.subject_name }}</h1>
+        <p>Class: {{ slot.class_name }} | Date: {{ date }}</p>
+        <nav class="nav-links">
+            <a href="/teacher">Back to Schedule</a>
+            <a href="/teacher/download_slot_report/{{ slot.id }}" class="download-btn">📥 Download Period Report</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </div>
+
+    <div class="dashboard-content">
+        <div class="table-container">
+            <table class="attendance-table">
+                <thead>
+                    <tr>
+                        <th>RFID UID</th>
+                        <th>Student Name</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in attendance %}
+                    <tr>
+                        <td class="rfid-uid">{{ s.rfid_uid or '-' }}</td>
+                        <td>{{ s.name }}</td>
+                        <td>{{ s.face_entry or '--:--' }}</td>
+                        <td>{{ s.face_exit or '--:--' }}</td>
+                        <td class="status-{{ s.status }}">{{ s.status }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

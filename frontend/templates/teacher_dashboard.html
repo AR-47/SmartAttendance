@@ -11,8 +11,6 @@
         <p>Welcome, {{ name }}!</p>
         <nav class="nav-links">
             <a href="/teacher">Home</a>
-            <a href="/" target="_blank">Live Monitor</a>
-            <a href="/teacher/download_report" class="download-btn">📥 Download Report</a>
             <a href="/logout">Logout</a>
         </nav>
     </div>
@@ -42,11 +40,13 @@
                         <td class="subject-cell">
                             {% set slot = timetable.get((day, time)) %}
                             {% if slot %}
-                            <div class="teacher-slot">
-                                <span class="subject-tag">{{ slot.subject }}</span>
-                                <span class="class-info">{{ slot.class }}</span>
-                                <span class="room-info">{{ slot.room }}</span>
-                            </div>
+                            <a href="/teacher/attendance/{{ slot.id }}" style="text-decoration: none; color: inherit;">
+                                <div class="teacher-slot clickable-slot">
+                                    <span class="subject-tag">{{ slot.subject }}</span>
+                                    <span class="class-info">{{ slot.class }}</span>
+                                    <span class="room-info">{{ slot.room }}</span>
+                                </div>
+                            </a>
                             {% else %}
                             <span class="empty-slot">-</span>
                             {% endif %}
@@ -62,17 +62,6 @@
                 <p class="hint">Please contact admin to assign you to classes.</p>
             </div>
             {% endif %}
-        </div>
-
-        <div class="info-card auto-system">
-            <div class="auto-badge">FULLY AUTOMATED</div>
-            <h3>Smart Attendance System</h3>
-            <ul>
-                <li>Attendance runs <strong>automatically</strong> during your scheduled classes</li>
-                <li>Camera starts when class begins, stops when class ends</li>
-                <li>No manual action required from you</li>
-                <li>Click <strong>Live Monitor</strong> to view real-time attendance</li>
-            </ul>
         </div>
     </div>
 </body>

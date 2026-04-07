@@ -1,16 +1,3 @@
-"""
-AUTO SCHEDULER - The Brain of Smart Attendance System
-=====================================================
-This script runs continuously and automatically:
-- Checks if there's a class scheduled RIGHT NOW
-- Starts face recognition when class begins
-- Stops it when class ends
-- Works completely hands-free!
-
-Run this script during college hours:
-    python auto_scheduler.py
-"""
-
 import sqlite3
 import subprocess
 import time
@@ -34,7 +21,7 @@ def log(message):
 def get_current_slot():
     """Check if there's a class scheduled right now"""
     now = datetime.now()
-    day = now.strftime("%A")  # Monday, Tuesday, etc.
+    day = now.strftime("%A")
     current_time = now.strftime("%H:%M")
     
     try:
@@ -55,7 +42,6 @@ def get_current_slot():
         
         slot = cursor.fetchone()
         conn.close()
-        
         return slot
     except Exception as e:
         log(f"DB Error: {e}")
@@ -64,21 +50,19 @@ def get_current_slot():
 def start_session(slot_info):
     """Start the face recognition camera"""
     global running_process
-    
     slot_id, subject_id, subject, class_name, teacher, start, end = slot_info
     
     log("=" * 50)
     log(f"CLASS STARTED: {subject}")
     log(f"Class: {class_name} | Teacher: {teacher}")
     log(f"Time: {start} - {end}")
-    log(f"Subject ID: {subject_id} (for attendance tagging)")
     log("Starting face recognition...")
     log("=" * 50)
     
-    # Start live_recognition.py in background with subject_id
     script_path = os.path.join(BASE_DIR, "live_recognition.py")
     
     try:
+        # Start live_recognition.py in background with subject_id
         running_process = subprocess.Popen(
             ["python", script_path, str(subject_id)],
             cwd=BASE_DIR,
@@ -99,28 +83,18 @@ def stop_session():
     
     if running_process:
         try:
-            # Send Ctrl+C signal for graceful shutdown
-            # This lets live_recognition.py save data + run finalize_attendance
+            # Send signal for graceful shutdown to trigger DB saving
             running_process.send_signal(signal.CTRL_C_EVENT)
             
-            # Wait up to 60 seconds for cleanup (saving attendance + finalizing)
-            log("Waiting for attendance to save...")
-            running_process.wait(timeout=60)
+            log("Waiting for attendance to save in Database...")
+            running_process.wait(timeout=60) # Allow time for face_logs and finalize_attendance
             log("Attendance saved and finalized!")
         except subprocess.TimeoutExpired:
             log("Timeout - force stopping process...")
             running_process.terminate()
-            try:
-                running_process.wait(timeout=10)
-            except:
-                running_process.kill()
         except Exception as e:
-            log(f"Stop error: {e} - force terminating...")
-            try:
-                running_process.terminate()
-                running_process.wait(timeout=10)
-            except:
-                pass
+            log(f"Stop error: {e}")
+            running_process.terminate()
         
         running_process = None
 
@@ -129,14 +103,13 @@ def main():
     
     print("")
     print("=" * 60)
-    print("   SMART ATTENDANCE - AUTO SCHEDULER")
-    print("   The system is now watching the timetable...")
+    print("   SMART ATTENDANCE - AUTO SCHEDULER (V2)")
+    print("   High-Frequency Monitoring Active")
     print("=" * 60)
     print("")
     log(f"Base directory: {BASE_DIR}")
     log(f"Database: {DB_PATH}")
-    log(f"Database exists: {os.path.exists(DB_PATH)}")
-    log(f"Auto scheduler started. Checking every 30 seconds...")
+    log(f"Auto scheduler started. Checking every 1 second...") # Updated log message
     log(f"Today is {datetime.now().strftime('%A, %B %d, %Y')}")
     print("")
     
@@ -144,28 +117,22 @@ def main():
         try:
             slot = get_current_slot()
             
-            # Class is happening now
             if slot:
                 slot_id = slot[0]
-                
-                # New class started (different from current)
+                # New class started or different session
                 if current_session != slot_id:
-                    # Stop previous session if any
                     if current_session is not None:
                         stop_session()
-                    
-                    # Start new session
                     start_session(slot)
                     current_session = slot_id
-            
-            # No class right now
             else:
+                # No class happening now
                 if current_session is not None:
                     stop_session()
                     current_session = None
             
-            # Wait before next check
-            time.sleep(30)
+            # Use 1 second for near-instant detection
+            time.sleep(1) 
             
         except KeyboardInterrupt:
             log("Scheduler stopped by user")
@@ -174,7 +141,7 @@ def main():
             break
         except Exception as e:
             log(f"Error: {e}")
-            time.sleep(30)
+            time.sleep(1)
 
 if __name__ == "__main__":
     main()

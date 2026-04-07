@@ -66,46 +66,57 @@ def student_dashboard():
         return redirect("/login")
 
     student_id = session["user_id"]
+    today_date = date.today().isoformat() # Get current date (YYYY-MM-DD)
+    today_day = date.today().strftime("%A") # Get current day name (e.g., 'Tuesday')
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Get student's class
+    # 1. Get student's class
     cursor.execute("SELECT class_id FROM users WHERE id=?", (student_id,))
     result = cursor.fetchone()
     class_id = result["class_id"] if result and result["class_id"] else None
 
-    # Initialize grid data
+    # 2. Get attendance for today
+    cursor.execute("SELECT subject_id, status FROM attendance WHERE student_id=? AND date=?", (student_id, today_date))
+    attendance_data = {row["subject_id"]: row["status"] for row in cursor.fetchall()}
+
     timetable = {}
     timeslots = set()
     class_name = ""
 
     if class_id:
-        # Get class name
+        # Get class info
         cursor.execute("SELECT class_name, room_no FROM classes WHERE id=?", (class_id,))
         class_info = cursor.fetchone()
         if class_info:
             class_name = f"{class_info['class_name']} - {class_info['room_no']}"
 
-        # Get timetable for that class
+        # 3. Get timetable and check status
         cursor.execute("""
-            SELECT timetable.day, timetable.start_time, timetable.end_time, subjects.subject_name
+            SELECT timetable.day, timetable.start_time, timetable.end_time, 
+                   subjects.subject_name, subjects.id as sid
             FROM timetable
             JOIN subjects ON timetable.subject_id = subjects.id
             WHERE timetable.class_id = ?
         """, (class_id,))
-        rows = cursor.fetchall()
-
-        # Convert to grid dictionary: {(day, time_range): subject_name}
-        for r in rows:
-            day = r["day"]
+        
+        for r in cursor.fetchall():
             time_range = f"{r['start_time']} - {r['end_time']}"
-            timetable[(day, time_range)] = r["subject_name"]
+            day = r["day"]
+            
+            # Determine status: Only show red/green for TODAY'S classes
+            status = None
+            if day == today_day:
+                status = attendance_data.get(r["sid"], "None") # 'Present', 'Absent', or 'None' (if class hasn't finished)
+
+            timetable[(day, time_range)] = {
+                "name": r["subject_name"],
+                "status": status
+            }
             timeslots.add(time_range)
 
     conn.close()
-
-    # Sort timeslots by start time
     timeslots = sorted(list(timeslots))
 
     return render_template("student_dashboard.html",
@@ -120,12 +131,12 @@ def teacher_dashboard():
         return redirect("/login")
 
     teacher_id = session["user_id"]
-
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Added timetable.id to the selection
     cursor.execute("""
-        SELECT timetable.day, timetable.start_time, timetable.end_time,
+        SELECT timetable.id, timetable.day, timetable.start_time, timetable.end_time,
                subjects.subject_name, classes.class_name, classes.room_no
         FROM timetable
         JOIN subjects ON timetable.subject_id = subjects.id
@@ -136,33 +147,143 @@ def teacher_dashboard():
     rows = cursor.fetchall()
     conn.close()
 
-    # Convert to grid dictionary
     timetable = {}
     timeslots = set()
 
     for r in rows:
         day = r["day"]
         time_range = f"{r['start_time']} - {r['end_time']}"
-        # Store subject and class info
         timetable[(day, time_range)] = {
+            "id": r["id"], # Store ID for clickable link
             "subject": r["subject_name"],
             "class": r["class_name"],
             "room": r["room_no"]
         }
         timeslots.add(time_range)
 
-    # Sort timeslots by start time
     timeslots = sorted(list(timeslots))
+    return render_template("teacher_dashboard.html", name=session["name"], timetable=timetable, timeslots=timeslots)
 
-    return render_template("teacher_dashboard.html",
-                           name=session["name"],
-                           timetable=timetable,
-                           timeslots=timeslots)
+@app.route("/teacher/attendance/<int:slot_id>")
+def view_slot_attendance(slot_id):
+    if session.get("role") != "teacher":
+        return redirect("/login")
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Get slot info
+    cursor.execute("""
+        SELECT t.class_id, t.subject_id, s.subject_name, c.class_name 
+        FROM timetable t
+        JOIN subjects s ON t.subject_id = s.id
+        JOIN classes c ON t.class_id = c.id
+        WHERE t.id = ?
+    """, (slot_id,))
+    slot = cursor.fetchone()
+    
+    if not slot:
+        conn.close()
+        return "Slot not found", 404
+        
+    today = date.today().isoformat()
+    
+    # Get students in class + their attendance and entry/exit times
+    cursor.execute("""
+        SELECT u.rfid_uid, u.name, l.face_entry, l.face_exit, 
+               COALESCE(a.status, 'Absent') as status
+        FROM users u
+        LEFT JOIN attendance a ON u.id = a.student_id 
+             AND a.subject_id = ? AND a.date = ?
+        LEFT JOIN live_attendance l ON CAST(u.id AS TEXT) = l.student_id
+        WHERE u.class_id = ? AND u.role = 'student'
+        ORDER BY u.name ASC
+    """, (slot['subject_id'], today, slot['class_id']))
+    
+    attendance = cursor.fetchall()
+    conn.close()
+    
+    return render_template("view_slot_attendance.html", attendance=attendance, slot=slot, date=today)
 
 # NOTE: Manual start_session route REMOVED
 # Attendance is now fully automated via auto_scheduler.py
 # The system watches the timetable and starts/stops camera automatically
 
+
+@app.route("/teacher/download_slot_report/<int:slot_id>")
+def download_slot_report(slot_id):
+    if session.get("role") != "teacher":
+        return redirect("/login")
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # 1. Get the specific subject and class for this slot
+    cursor.execute("""
+        SELECT t.class_id, t.subject_id, s.subject_name, c.class_name 
+        FROM timetable t
+        JOIN subjects s ON t.subject_id = s.id
+        JOIN classes c ON t.class_id = c.id
+        WHERE t.id = ?
+    """, (slot_id,))
+    slot = cursor.fetchone()
+    
+    if not slot:
+        conn.close()
+        return "Slot not found", 404
+        
+    today = date.today().isoformat()
+    
+    # 2. Fetch attendance records for this specific class and subject today
+    cursor.execute("""
+        SELECT u.name as student_name, u.rfid_uid, 
+               COALESCE(a.status, 'Absent') as status
+        FROM users u
+        LEFT JOIN attendance a ON u.id = a.student_id 
+             AND a.subject_id = ? AND a.date = ?
+        WHERE u.class_id = ? AND u.role = 'student'
+        ORDER BY u.name ASC
+    """, (slot['subject_id'], today, slot['class_id']))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # 3. Create the Excel file
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Session Attendance"
+    
+    ws.append([f"Subject: {slot['subject_name']}"])
+    ws.append([f"Class: {slot['class_name']}"])
+    ws.append([f"Date: {today}"])
+    ws.append([])  # Spacer
+    ws.append(["RFID UID", "Student Name", "Status"])
+    
+    for r in rows:
+        ws.append([r["rfid_uid"] or "N/A", r["student_name"], r["status"]])
+    
+    # Auto-adjust column widths
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except: pass
+        ws.column_dimensions[column_letter].width = max_length + 2
+    
+    file_stream = BytesIO()
+    wb.save(file_stream)
+    file_stream.seek(0)
+    
+    filename = f"{slot['subject_name']}_{slot['class_name']}_{today}.xlsx".replace(" ", "_")
+    return send_file(
+        file_stream,
+        download_name=filename,
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 @app.route("/admin")
 def admin_dashboard():
