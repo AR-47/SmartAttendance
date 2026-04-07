@@ -19,7 +19,7 @@ def log(message):
     print(f"[{timestamp}] {message}")
 
 def get_current_slot():
-    """Check if there's a class scheduled right now"""
+    """Check if there's a class scheduled now OR starting within 2 minutes"""
     now = datetime.now()
     day = now.strftime("%A")
     current_time = now.strftime("%H:%M")
@@ -28,6 +28,9 @@ def get_current_slot():
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
+        # SQL logic: 
+        # 1. Matches if current time is DURING the class
+        # 2. Matches if current time is within the 2-minute "Warm-Up" window BEFORE class
         cursor.execute("""
             SELECT timetable.id, timetable.subject_id, subjects.subject_name, classes.class_name, 
                    users.name as teacher, timetable.start_time, timetable.end_time
@@ -36,9 +39,11 @@ def get_current_slot():
             JOIN classes ON timetable.class_id = classes.id
             JOIN users ON timetable.teacher_id = users.id
             WHERE timetable.day = ? 
-              AND timetable.start_time <= ? 
-              AND timetable.end_time > ?
-        """, (day, current_time, current_time))
+              AND (
+                (timetable.start_time <= ? AND timetable.end_time > ?) OR
+                (time(timetable.start_time, '-2 minutes') <= time(?) AND timetable.start_time > ?)
+              )
+        """, (day, current_time, current_time, current_time, current_time))
         
         slot = cursor.fetchone()
         conn.close()
@@ -53,10 +58,10 @@ def start_session(slot_info):
     slot_id, subject_id, subject, class_name, teacher, start, end = slot_info
     
     log("=" * 50)
-    log(f"CLASS STARTED: {subject}")
+    log(f"SESSION INITIALIZING: {subject}")
     log(f"Class: {class_name} | Teacher: {teacher}")
-    log(f"Time: {start} - {end}")
-    log("Starting face recognition...")
+    log(f"Scheduled Time: {start} - {end}")
+    log("Status: Warming up (Loading AI Models & Camera)...")
     log("=" * 50)
     
     script_path = os.path.join(BASE_DIR, "live_recognition.py")
@@ -103,13 +108,13 @@ def main():
     
     print("")
     print("=" * 60)
-    print("   SMART ATTENDANCE - AUTO SCHEDULER (V2)")
-    print("   High-Frequency Monitoring Active")
+    print("   SMART ATTENDANCE - AUTO SCHEDULER (V3)")
+    print("   Warm-Up / Early Start Support Enabled")
     print("=" * 60)
     print("")
     log(f"Base directory: {BASE_DIR}")
     log(f"Database: {DB_PATH}")
-    log(f"Auto scheduler started. Checking every 1 second...") # Updated log message
+    log(f"Checking schedule every 1 second...")
     log(f"Today is {datetime.now().strftime('%A, %B %d, %Y')}")
     print("")
     
@@ -126,12 +131,11 @@ def main():
                     start_session(slot)
                     current_session = slot_id
             else:
-                # No class happening now
+                # No class happening now or in warm-up
                 if current_session is not None:
                     stop_session()
                     current_session = None
             
-            # Use 1 second for near-instant detection
             time.sleep(1) 
             
         except KeyboardInterrupt:

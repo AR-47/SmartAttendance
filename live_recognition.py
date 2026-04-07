@@ -44,6 +44,7 @@ class LiveAttendanceApp(ctk.CTk):
         self.first_seen_time = {}
         self.last_seen_time = {}
         self.rfid_input_buffer = ""
+        self.class_start_time = None  # Added for Warm-Up logic
         self.class_end_time = None 
         self.cap = None
         
@@ -62,7 +63,7 @@ class LiveAttendanceApp(ctk.CTk):
         self.info_label = ctk.CTkLabel(self.sidebar, text=status_text, text_color="#38bdf8")
         self.info_label.pack(pady=10)
         
-        self.timer_label = ctk.CTkLabel(self.sidebar, text="End Time: --:--", text_color="gray")
+        self.timer_label = ctk.CTkLabel(self.sidebar, text="Session Time: --:--", text_color="gray")
         self.timer_label.pack(pady=5)
 
         self.btn_stop = ctk.CTkButton(self.sidebar, text="STOP & FINALIZE", command=self.stop_and_exit, fg_color="#e74c3c", hover_color="#c0392b")
@@ -85,7 +86,7 @@ class LiveAttendanceApp(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self.stop_and_exit)
 
     def load_system_data(self):
-        """Fetch Student Data and the CURRENT session's End Time"""
+        """Fetch Student Data and the CURRENT session's Start/End Time"""
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -95,22 +96,25 @@ class LiveAttendanceApp(ctk.CTk):
         for s in cursor.execute("SELECT id, rfid_uid FROM users WHERE rfid_uid IS NOT NULL"):
             self.rfid_to_id[str(s['rfid_uid'])] = s['id']
 
-        # 2. ROBUST TIME LOOKUP: Only get the end_time for the ACTIVE slot
+        # 2. ROBUST TIME LOOKUP: Get both start and end time for the active/upcoming slot
         if SUBJECT_ID:
             now = datetime.now()
             day, current_time = now.strftime("%A"), now.strftime("%H:%M")
+            # Look for a slot that is active OR starting within the next 5 minutes
             cursor.execute("""
-                SELECT end_time FROM timetable 
-                WHERE subject_id = ? AND day = ? AND start_time <= ? AND end_time > ? 
+                SELECT start_time, end_time FROM timetable 
+                WHERE subject_id = ? AND day = ? AND end_time > ? 
                 LIMIT 1
-            """, (SUBJECT_ID, day, current_time, current_time))
+            """, (SUBJECT_ID, day, current_time))
             
             row = cursor.fetchone()
             if row:
+                self.class_start_time = row['start_time']
                 self.class_end_time = row['end_time']
-                self.timer_label.configure(text=f"Ends at: {self.class_end_time}", text_color="#facc15")
+                self.timer_label.configure(text=f"Class: {self.class_start_time} - {self.class_end_time}", text_color="#facc15")
 
         # 3. Load Faces and link to IDs
+        # This part handles the "Pre-loading" of AI models
         for filename in os.listdir(FACE_DB_PATH):
             if filename.lower().endswith((".png", ".jpg", ".jpeg")):
                 name = os.path.splitext(filename)[0]
@@ -161,18 +165,33 @@ class LiveAttendanceApp(ctk.CTk):
         threading.Thread(target=self.video_stream_loop, daemon=True).start()
 
     def video_stream_loop(self):
-        """Main recognition loop with anti-rigging checks"""
+        """Main recognition loop with warm-up phase and anti-rigging checks"""
         last_check = 0
         current_faces = []
         
         while self.running:
-            # Automatic Time-Based Shutdown (Anti-Rigging)
+            # 1. WARM-UP CHECK
             current_time = datetime.now().strftime("%H:%M")
+            if self.class_start_time and current_time < self.class_start_time:
+                # Still in warm-up phase
+                ret, frame = self.cap.read()
+                if not ret: break
+                
+                # Overlay "Waiting" message on the camera feed
+                cv2.rectangle(frame, (0, 0), (1280, 80), (0, 0, 0), -1)
+                cv2.putText(frame, f"SYSTEM READY - WAITING FOR CLASS AT {self.class_start_time}", 
+                            (150, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                
+                self.update_gui_frame(frame)
+                time.sleep(0.5) # Lower CPU usage while waiting
+                continue
+
+            # 2. END-TIME CHECK
             if self.class_end_time and current_time >= self.class_end_time:
-                # Use after() to safely trigger stop from a thread
                 self.after(10, self.stop_and_exit)
                 break
 
+            # 3. ACTIVE RECOGNITION
             ret, frame = self.cap.read()
             if not ret: break
 
@@ -190,7 +209,6 @@ class LiveAttendanceApp(ctk.CTk):
                             if dist < min_dist and dist <= THRESHOLD:
                                 min_dist, best_id, best_name = dist, p["id"], p["name"]
                         
-                        # Only track if RFID tapped
                         is_verified = best_id in self.tapped_student_ids
                         if is_verified:
                             now = datetime.now()
@@ -203,6 +221,7 @@ class LiveAttendanceApp(ctk.CTk):
                         current_faces.append({"area": f["facial_area"], "name": best_name, "id": best_id, "verified": is_verified})
                 except: current_faces = []
 
+            # Draw boxes and names
             for f in current_faces:
                 a = f["area"]
                 x, y, w, h = [v * 2 for v in [a['x'], a['y'], a['w'], a['h']]]
@@ -211,20 +230,23 @@ class LiveAttendanceApp(ctk.CTk):
                 status = f"{f['name']} ({self.presence_counter.get(f['name'], 0)}s)" if f["verified"] else "TAP RFID"
                 cv2.putText(frame, status, (x, y - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
-            # SAFE GUI UPDATE: Try-Except prevents crash on exit
-            if not self.running: break
-            try:
-                img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img_pil = Image.fromarray(img)
-                cw, ch = self.video_container.winfo_width(), self.video_container.winfo_height()
-                if cw > 100: 
-                    img_pil = img_pil.resize((cw - 20, ch - 20), Image.Resampling.LANCZOS)
-                imgtk = ImageTk.PhotoImage(image=img_pil)
-                self.video_label.configure(image=imgtk, text="")
-                self.video_label.image = imgtk
-            except: break
+            self.update_gui_frame(frame)
 
         if self.cap: self.cap.release()
+
+    def update_gui_frame(self, frame):
+        """Safe helper to update the tkinter video display"""
+        if not self.running: return
+        try:
+            img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img_pil = Image.fromarray(img)
+            cw, ch = self.video_container.winfo_width(), self.video_container.winfo_height()
+            if cw > 100: 
+                img_pil = img_pil.resize((cw - 20, ch - 20), Image.Resampling.LANCZOS)
+            imgtk = ImageTk.PhotoImage(image=img_pil)
+            self.video_label.configure(image=imgtk, text="")
+            self.video_label.image = imgtk
+        except: pass
 
     def update_live_db(self, student_id, name, duration):
         """Keep the real-time web dashboard updated"""
@@ -251,7 +273,6 @@ class LiveAttendanceApp(ctk.CTk):
         self.running = False
         time.sleep(0.5)
         
-        # Save total face duration before closing
         if SUBJECT_ID:
             self.save_final_logs_to_db()
             try: 
