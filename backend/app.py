@@ -645,5 +645,5 @@ def admin_download_report():
 if __name__ == "__main__":
     # Make sure database exists
     if not os.path.exists(DB_PATH):
-        print("Database not found. Run database_setup.py first.")
-    app.run(debug=True)
+        print("Database not found. Run setup_full_system.py first.")
+    app.run(debug=True, exclude_patterns=["*.db", "*.db-journal", "*.xlsx"])

@@ -10,6 +10,9 @@ import tkinter as tk
 from threading import Thread
 import sqlite3
 
+# -------- BASE DIRECTORY --------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # -------- SUBJECT ID FROM SCHEDULER --------
 # When called from auto_scheduler.py, subject_id is passed as argument
 SUBJECT_ID = int(sys.argv[1]) if len(sys.argv) > 1 else None
@@ -21,7 +24,7 @@ running = False
 def run_attendance():
     global running
 
-    DB_PATH = "id_database"
+    DB_PATH = os.path.join(BASE_DIR, "id_database")
     THRESHOLD = 0.50
     MODEL_NAME = "ArcFace"
     DETECTOR = "yunet"
@@ -66,7 +69,8 @@ def run_attendance():
     print("Attendance session started...")
 
     # Database connection for live updates
-    conn = sqlite3.connect("database.db", check_same_thread=False)
+    db_file = os.path.join(BASE_DIR, "database.db")
+    conn = sqlite3.connect(db_file, check_same_thread=False)
     cursor = conn.cursor()
 
     while running:
@@ -209,7 +213,8 @@ def save_attendance_to_db(known_faces, presence_counter, total_checks, required_
     """Save face duration data to database for merging with RFID"""
     import subprocess
     
-    conn = sqlite3.connect("database.db")
+    db_file = os.path.join(BASE_DIR, "database.db")
+    conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
     
     today = datetime.now().strftime("%Y-%m-%d")
@@ -247,12 +252,12 @@ def save_attendance_to_db(known_faces, presence_counter, total_checks, required_
     
     # Call finalize_attendance to merge RFID + Face data
     try:
-        script_path = os.path.join(os.path.dirname(__file__), "finalize_attendance.py")
-        subprocess.run(["python", script_path], cwd=os.path.dirname(script_path))
+        script_path = os.path.join(BASE_DIR, "finalize_attendance.py")
+        subprocess.run(["python", script_path], cwd=BASE_DIR)
     except Exception as e:
         print(f"[!] Error finalizing attendance: {e}")
 
-# -------- GUI --------
+# -------- GUI (Manual Mode) --------
 def start_attendance():
     global running
     if not running:
@@ -263,12 +268,36 @@ def stop_program():
     global running
     running = False
 
-root = tk.Tk()
-root.title("Face Attendance Dashboard")
-root.geometry("400x250")
+# -------- AUTO vs MANUAL MODE --------
+if __name__ == "__main__" or SUBJECT_ID is not None:
+    if SUBJECT_ID is not None:
+        # AUTO MODE: Called by auto_scheduler.py
+        # Start immediately, no GUI needed
+        import signal
 
-tk.Label(root, text="AI Face Attendance System", font=("Arial",16)).pack(pady=20)
-tk.Button(root, text="Start Attendance", command=start_attendance).pack(pady=10)
-tk.Button(root, text="Stop", command=stop_program).pack(pady=10)
+        def handle_stop(signum, frame):
+            """Gracefully stop when scheduler terminates us"""
+            global running
+            print("\n[AUTO] Received stop signal - saving attendance...")
+            running = False
 
-root.mainloop()
+        # Handle termination signal gracefully
+        signal.signal(signal.SIGTERM, handle_stop)
+        signal.signal(signal.SIGINT, handle_stop)
+
+        print(f"[AUTO] Starting face recognition for Subject ID: {SUBJECT_ID}")
+        print("[AUTO] Camera will run until scheduler stops it...")
+        running = True
+        run_attendance()
+        print("[AUTO] Session complete.")
+    else:
+        # MANUAL MODE: Run with GUI buttons
+        root = tk.Tk()
+        root.title("Face Attendance Dashboard")
+        root.geometry("400x250")
+
+        tk.Label(root, text="AI Face Attendance System", font=("Arial", 16)).pack(pady=20)
+        tk.Button(root, text="Start Attendance", command=start_attendance).pack(pady=10)
+        tk.Button(root, text="Stop", command=stop_program).pack(pady=10)
+
+        root.mainloop()

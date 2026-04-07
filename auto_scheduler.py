@@ -15,10 +15,12 @@ import sqlite3
 import subprocess
 import time
 import os
+import signal
 from datetime import datetime
 
-# Database path
-DB_PATH = "database.db"
+# Resolve all paths relative to THIS script's location
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "database.db")
 
 # Track running state
 running_process = None
@@ -35,25 +37,29 @@ def get_current_slot():
     day = now.strftime("%A")  # Monday, Tuesday, etc.
     current_time = now.strftime("%H:%M")
     
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT timetable.id, timetable.subject_id, subjects.subject_name, classes.class_name, 
-               users.name as teacher, timetable.start_time, timetable.end_time
-        FROM timetable
-        JOIN subjects ON timetable.subject_id = subjects.id
-        JOIN classes ON timetable.class_id = classes.id
-        JOIN users ON timetable.teacher_id = users.id
-        WHERE timetable.day = ? 
-          AND timetable.start_time <= ? 
-          AND timetable.end_time > ?
-    """, (day, current_time, current_time))
-    
-    slot = cursor.fetchone()
-    conn.close()
-    
-    return slot
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT timetable.id, timetable.subject_id, subjects.subject_name, classes.class_name, 
+                   users.name as teacher, timetable.start_time, timetable.end_time
+            FROM timetable
+            JOIN subjects ON timetable.subject_id = subjects.id
+            JOIN classes ON timetable.class_id = classes.id
+            JOIN users ON timetable.teacher_id = users.id
+            WHERE timetable.day = ? 
+              AND timetable.start_time <= ? 
+              AND timetable.end_time > ?
+        """, (day, current_time, current_time))
+        
+        slot = cursor.fetchone()
+        conn.close()
+        
+        return slot
+    except Exception as e:
+        log(f"DB Error: {e}")
+        return None
 
 def start_session(slot_info):
     """Start the face recognition camera"""
@@ -70,23 +76,52 @@ def start_session(slot_info):
     log("=" * 50)
     
     # Start live_recognition.py in background with subject_id
-    script_path = os.path.join(os.path.dirname(__file__), "live_recognition.py")
-    running_process = subprocess.Popen(
-        ["python", script_path, str(subject_id)],
-        cwd=os.path.dirname(script_path)
-    )
+    script_path = os.path.join(BASE_DIR, "live_recognition.py")
+    
+    try:
+        running_process = subprocess.Popen(
+            ["python", script_path, str(subject_id)],
+            cwd=BASE_DIR,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+        log(f"Camera process started (PID: {running_process.pid})")
+    except Exception as e:
+        log(f"ERROR starting camera: {e}")
+        running_process = None
 
 def stop_session():
-    """Stop the face recognition camera"""
+    """Stop the face recognition camera gracefully"""
     global running_process
     
     log("=" * 50)
     log("CLASS ENDED - Stopping attendance session")
-    log("Attendance saved automatically!")
     log("=" * 50)
     
     if running_process:
-        running_process.terminate()
+        try:
+            # Send Ctrl+C signal for graceful shutdown
+            # This lets live_recognition.py save data + run finalize_attendance
+            running_process.send_signal(signal.CTRL_C_EVENT)
+            
+            # Wait up to 60 seconds for cleanup (saving attendance + finalizing)
+            log("Waiting for attendance to save...")
+            running_process.wait(timeout=60)
+            log("Attendance saved and finalized!")
+        except subprocess.TimeoutExpired:
+            log("Timeout - force stopping process...")
+            running_process.terminate()
+            try:
+                running_process.wait(timeout=10)
+            except:
+                running_process.kill()
+        except Exception as e:
+            log(f"Stop error: {e} - force terminating...")
+            try:
+                running_process.terminate()
+                running_process.wait(timeout=10)
+            except:
+                pass
+        
         running_process = None
 
 def main():
@@ -98,7 +133,10 @@ def main():
     print("   The system is now watching the timetable...")
     print("=" * 60)
     print("")
-    log("Auto scheduler started. Checking every 30 seconds...")
+    log(f"Base directory: {BASE_DIR}")
+    log(f"Database: {DB_PATH}")
+    log(f"Database exists: {os.path.exists(DB_PATH)}")
+    log(f"Auto scheduler started. Checking every 30 seconds...")
     log(f"Today is {datetime.now().strftime('%A, %B %d, %Y')}")
     print("")
     
