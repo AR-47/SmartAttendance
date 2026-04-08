@@ -172,9 +172,9 @@ def view_slot_attendance(slot_id):
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Get slot info
+    # UPDATE THIS QUERY: Add t.id to the SELECT statement
     cursor.execute("""
-        SELECT t.class_id, t.subject_id, s.subject_name, c.class_name 
+        SELECT t.id, t.class_id, t.subject_id, s.subject_name, c.class_name 
         FROM timetable t
         JOIN subjects s ON t.subject_id = s.id
         JOIN classes c ON t.class_id = c.id
@@ -220,7 +220,7 @@ def download_slot_report(slot_id):
     
     # 1. Get the specific subject and class for this slot
     cursor.execute("""
-        SELECT t.class_id, t.subject_id, s.subject_name, c.class_name 
+        SELECT t.id, t.class_id, t.subject_id, s.subject_name, c.class_name 
         FROM timetable t
         JOIN subjects s ON t.subject_id = s.id
         JOIN classes c ON t.class_id = c.id
@@ -234,13 +234,14 @@ def download_slot_report(slot_id):
         
     today = date.today().isoformat()
     
-    # 2. Fetch attendance records for this specific class and subject today
+    # 2. Fetch attendance records WITH entry/exit times matching the "details" view
     cursor.execute("""
-        SELECT u.name as student_name, u.rfid_uid, 
+        SELECT u.rfid_uid, u.name as student_name, l.face_entry, l.face_exit, 
                COALESCE(a.status, 'Absent') as status
         FROM users u
         LEFT JOIN attendance a ON u.id = a.student_id 
              AND a.subject_id = ? AND a.date = ?
+        LEFT JOIN live_attendance l ON CAST(u.id AS TEXT) = l.student_id
         WHERE u.class_id = ? AND u.role = 'student'
         ORDER BY u.name ASC
     """, (slot['subject_id'], today, slot['class_id']))
@@ -253,14 +254,24 @@ def download_slot_report(slot_id):
     ws = wb.active
     ws.title = "Session Attendance"
     
+    # Header Information
     ws.append([f"Subject: {slot['subject_name']}"])
     ws.append([f"Class: {slot['class_name']}"])
     ws.append([f"Date: {today}"])
     ws.append([])  # Spacer
-    ws.append(["RFID UID", "Student Name", "Status"])
     
+    # Updated Table Headers to match the Details UI
+    ws.append(["RFID UID", "Student Name", "From", "To", "Status"])
+    
+    # Add Data Rows
     for r in rows:
-        ws.append([r["rfid_uid"] or "N/A", r["student_name"], r["status"]])
+        ws.append([
+            r["rfid_uid"] or "N/A", 
+            r["student_name"], 
+            r["face_entry"] or "--:--", 
+            r["face_exit"] or "--:--", 
+            r["status"]
+        ])
     
     # Auto-adjust column widths
     for column in ws.columns:
